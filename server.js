@@ -50,7 +50,6 @@ app.get('/api/tournaments/ics', (req,res)=>{
 })
 
 const port = process.env.PORT || 3000
-import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
