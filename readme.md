@@ -22,7 +22,7 @@ mtg-torneos/
 
 1. Clona este repositorio:
    ```bash
-   git clone https://github.com/tuusuario/mtg-torneos.git
+   git clone https://github.com/tarodofchaos/mtg-torneos.git
    cd mtg-torneos
    ```
 
@@ -83,7 +83,7 @@ mtg-torneos/
 
 ---
 
-## 🔮 Próximas mejoras (Opciones 4 y 5)
+## 🔮 Próximas mejoras
 1. **RSVP sin login** → usuarios podrán inscribirse con apodo en cada torneo.
 2. **Tema oscuro / claro** con botón de cambio.
 3. **UI mejorada** para móvil y escritorio (más compacta en móviles, vista de calendario completa en escritorio).
