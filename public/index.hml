@@ -13,6 +13,9 @@ html
       // API_BASE puede configurarse en el deploy (si backend en otro dominio)
       window.API_BASE = window.API_BASE || ''
     </script>
+    <script>
+     window.API_BASE = "https://mtg-c83e.onrender.com";
+    </script>
     <script type="module">
     import React, {useState,useEffect} from 'https://esm.sh/react@18.2.0'
     import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client'
