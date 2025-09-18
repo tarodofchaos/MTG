@@ -2,7 +2,7 @@
 // Requiere node >= 18
 const express = require('express')
 const fs = require('fs')
-const path = require('path')
+import path from "path";
 const { v4: uuidv4 } = require('uuid')
 const app = express()
 const DATA = path.join(__dirname,'data.json')
