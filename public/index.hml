@@ -1,0 +1,150 @@
+html
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>MTG Torneos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-100 text-slate-900">
+    <div id="root"></div>
+    <script>
+      // API_BASE puede configurarse en el deploy (si backend en otro dominio)
+      window.API_BASE = window.API_BASE || ''
+    </script>
+    <script type="module">
+    import React, {useState,useEffect} from 'https://esm.sh/react@18.2.0'
+    import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client'
+
+    const API_BASE = window.API_BASE || ''
+    const LOCALE = 'es-ES'
+
+    function formatDateKey(d){
+      const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${day}`
+    }
+
+    function Calendar({tournaments,onDayClick}){
+      const today = new Date()
+      const [current, setCurrent] = useState(new Date(today.getFullYear(), today.getMonth(), 1))
+      const monthName = current.toLocaleString(LOCALE,{month:'long', year:'numeric'})
+      const startDay = (new Date(current.getFullYear(), current.getMonth(), 1).getDay() + 6) % 7 // Monday first
+      const daysInMonth = new Date(current.getFullYear(), current.getMonth()+1, 0).getDate()
+
+      function prev(){ setCurrent(new Date(current.getFullYear(), current.getMonth()-1,1)) }
+      function next(){ setCurrent(new Date(current.getFullYear(), current.getMonth()+1,1)) }
+
+      const cells = []
+      for(let i=0;i<startDay;i++) cells.push(null)
+      for(let d=1; d<=daysInMonth; d++) cells.push(new Date(current.getFullYear(), current.getMonth(), d))
+
+      return (
+        React.createElement('div', {className:'max-w-4xl mx-auto p-4'},
+          React.createElement('div', {className:'flex items-center justify-between mb-3'},
+            React.createElement('button', {onClick:prev, className:'px-3 py-1 rounded shadow-sm bg-white'}, '‹'),
+            React.createElement('h2', {className:'text-xl font-semibold'}, monthName),
+            React.createElement('button', {onClick:next, className:'px-3 py-1 rounded shadow-sm bg-white'}, '›')
+          ),
+          React.createElement('div', {className:'grid grid-cols-7 gap-1 bg-white rounded p-2 shadow-sm'},
+            ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(h=>React.createElement('div',{className:'text-center font-medium', key:h}, h)),
+            cells.map((date, i)=>{
+              const key = date ? formatDateKey(date) : 'empty-'+i
+              const dayT = date ? tournaments.filter(t=>t.date===key) : []
+              return React.createElement('div', {key, onClick:()=>date && onDayClick(date), className:'min-h-[80px] p-2 cursor-pointer rounded hover:bg-gray-50'},
+                date ? React.createElement('div', {className:'flex justify-between items-start'},
+                  React.createElement('div', {className:'text-sm text-slate-500'}, date.getDate()),
+                ) : null,
+                dayT.length>0 ? React.createElement('ul', {className:'mt-2 space-y-1'}, dayT.slice(0,3).map((t,idx)=>React.createElement('li',{key:t.id, className:'text-xs bg-indigo-50 px-2 py-1 rounded'}, `${t.formato} — ${t.titulo}`))) : null
+              )
+            })
+          )
+        )
+      )
+    }
+
+    function Modal({open,onClose,children}){
+      if(!open) return null
+      return React.createElement('div',{className:'fixed inset-0 z-40 flex items-center justify-center'},
+        React.createElement('div',{className:'absolute inset-0 bg-black/40', onClick:onClose}),
+        React.createElement('div',{className:'relative bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg shadow-xl max-w-xl w-full p-4 z-50'}, children)
+      )
+    }
+
+    function DayDetails({date, tournaments, onClose, onRefresh}){
+      const key = formatDateKey(date)
+      const items = tournaments.filter(t=>t.date===key)
+      return React.createElement('div', null,
+        React.createElement('div',{className:'flex justify-between items-center mb-2'},
+          React.createElement('h3',{className:'text-lg font-semibold'}, date.toLocaleDateString(LOCALE,{weekday:'long', day:'numeric', month:'long', year:'numeric'})),
+          React.createElement('div', null, React.createElement('button',{className:'px-3 py-1 bg-gray-100 rounded', onClick:()=>{navigator.clipboard?.writeText(location.href); alert('Enlace copiado')}} , 'Copiar enlace'))
+        ),
+        items.length===0 ? React.createElement('p', {className:'text-sm text-slate-500'}, 'No hay torneos ese día.') : items.map(t=>
+          React.createElement('div',{key:t.id, className:'border p-2 rounded mb-2 bg-white dark:bg-slate-700'},
+            React.createElement('div',{className:'flex justify-between items-start'},
+              React.createElement('div', null, React.createElement('h4',{className:'font-semibold'}, t.titulo), React.createElement('div',{className:'text-sm text-slate-600 dark:text-slate-200'}, `${t.hora || 'Hora por confirmar'} — ${t.formato}`)),
+              React.createElement('div', null, React.createElement('button',{className:'px-2 py-1 text-sm border rounded', onClick:async ()=>{ if(confirm('¿Borrar torneo?')){ const pass = prompt('Contraseña de admin'); if(!pass) return; const res = await fetch(API_BASE+'/api/tournaments/'+t.id,{method:'DELETE', headers:{'x-admin-password':pass}}); if(res.ok){ alert('Borrado'); onRefresh() } else { alert('Error autorizando') } } }}, 'Borrar'))
+            ),
+            React.createElement('p',{className:'mt-2 text-sm'}, t.descripcion || '')
+          )
+        )
+      )
+    }
+
+    function AdminPanel({onClose, onRefresh}){
+      const [titulo,setTitulo]=useState('');
+      const [formato,setFormato]=useState('Commander');
+      const [descripcion,setDescripcion]=useState('');
+      const [date,setDate]=useState('');
+      const [hora,setHora]=useState('');
+      async function submit(e){
+        e.preventDefault();
+        const password = prompt('Contraseña de admin');
+        if(!password) return alert('Necesitas contraseña');
+        const payload = {titulo, formato, descripcion, date, hora}
+        const res = await fetch(API_BASE+'/api/tournaments',{method:'POST',headers:{'content-type':'application/json','x-admin-password':password}, body: JSON.stringify(payload)})
+        if(res.ok){ setTitulo(''); setDescripcion(''); setDate(''); setHora(''); onRefresh(); alert('Torneo guardado') }
+        else{ const txt=await res.text(); alert('Error: '+txt) }
+      }
+
+      return React.createElement('form',{onSubmit:submit, className:'space-y-2'},
+        React.createElement('h3',{className:'text-lg font-semibold'}, 'Panel de administrador'),
+        React.createElement('input',{className:'w-full p-2 border rounded dark:bg-slate-800', placeholder:'Título', value:titulo, onChange:e=>setTitulo(e.target.value), required:true}),
+        React.createElement('select',{className:'w-full p-2 border rounded dark:bg-slate-800', value:formato, onChange:e=>setFormato(e.target.value)}, ['Commander','2HG','Modern','Legacy','Standard'].map(f=>React.createElement('option',{key:f}, f))),
+        React.createElement('input',{className:'w-full p-2 border rounded dark:bg-slate-800', type:'date', value:date, onChange:e=>setDate(e.target.value), required:true}),
+        React.createElement('input',{className:'w-full p-2 border rounded dark:bg-slate-800', placeholder:'Hora (ej. 18:30)', value:hora, onChange:e=>setHora(e.target.value)}),
+        React.createElement('textarea',{className:'w-full p-2 border rounded dark:bg-slate-800', placeholder:'Descripción / ubicacion / notas', value:descripcion, onChange:e=>setDescripcion(e.target.value)}),
+        React.createElement('div',{className:'flex gap-2'}, React.createElement('button',{className:'px-3 py-2 bg-indigo-600 text-white rounded','type':'submit'}, 'Guardar'), React.createElement('button',{className:'px-3 py-2 border rounded','type':'button', onClick:onClose}, 'Cerrar'))
+      )
+    }
+
+    function App(){
+      const [tournaments, setTournaments] = useState([])
+      const [selectedDate, setSelectedDate] = useState(null)
+      const [showAdmin, setShowAdmin] = useState(false)
+      const [modalOpen, setModalOpen] = useState(false)
+      const [dark, setDark] = useState(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+
+      async function load(){
+        try{ const res = await fetch(API_BASE+'/api/tournaments'); const data = await res.json(); setTournaments(data) }catch(e){ console.error(e) }
+      }
+      useEffect(()=>{ load() },[])
+      useEffect(()=>{ document.documentElement.classList.toggle('dark', dark) },[dark])
+
+      return React.createElement('div', null,
+        React.createElement('header',{className:'bg-white dark:bg-slate-900 shadow-sm py-4 mb-4'}, React.createElement('div',{className:'max-w-4xl mx-auto px-4 flex justify-between items-center'}, React.createElement('h1',{className:'text-2xl font-bold'}, 'MTG Torneos'), React.createElement('div', null, React.createElement('button',{className:'px-3 py-1 border rounded mr-2', onClick:()=>setShowAdmin(true)}, 'Administrador'), React.createElement('a',{className:'px-3 py-1 border rounded mr-2', href:'#', onClick:async (e)=>{e.preventDefault(); const res=await fetch(API_BASE+'/api/tournaments/ics'); const blob=await res.blob(); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='torneos.ics'; a.click()}}, 'Exportar .ics'), React.createElement('button',{className:'px-3 py-1 border rounded', onClick:()=>setDark(d=>!d)}, dark ? 'Tema claro' : 'Tema oscuro')))),
+        React.createElement('main', {className:'px-4'},
+          React.createElement(Calendar, {tournaments, onDayClick: d=>{ setSelectedDate(d); setModalOpen(true)} }),
+          React.createElement(Modal, {open:modalOpen, onClose:()=>setModalOpen(false)},
+            selectedDate ? React.createElement(DayDetails, {date:selectedDate, tournaments, onClose:()=>setModalOpen(false), onRefresh:load}) : null
+          ),
+          showAdmin ? React.createElement(Modal,{open:showAdmin, onClose:()=>setShowAdmin(false)}, React.createElement(AdminPanel,{onClose:()=>setShowAdmin(false), onRefresh:load})) : null
+        )
+      )
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'))
+    root.render(React.createElement(App))
+    </script>
+  </body>
+</html>
