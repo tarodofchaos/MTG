@@ -9,8 +9,8 @@ const DATA = path.join(__dirname, "data.json");
 const ADMIN_PASS = process.env.ADMIN_PASSWORD || "cambiateme";
 
 app.use(express.json());
-app.use(express.static("public"));
 
+// --- Rutas API ---
 function readData() {
   try {
     const raw = fs.readFileSync(DATA, "utf8");
@@ -48,7 +48,7 @@ app.delete("/api/tournaments/:id", (req, res) => {
   res.sendStatus(204);
 });
 
-// ICS export simple
+// ICS export
 app.get("/api/tournaments/ics", (req, res) => {
   const data = readData();
   let ics = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//mtg-torneos//es\n";
@@ -65,11 +65,15 @@ app.get("/api/tournaments/ics", (req, res) => {
   res.send(ics);
 });
 
-// Servir frontend
-app.use(express.static(path.join(__dirname, "public")));
+// --- Servir frontend SPA ---
+const publicPath = path.join(__dirname, "public");
+app.use(express.static(publicPath));
+
+// Fallback SPA: cualquier ruta no API devuelve index.html
 app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.sendFile(path.join(publicPath, "index.html"));
 });
 
+// --- Arrancar server ---
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log("Server listening on", port));
